@@ -1,0 +1,272 @@
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
+const db = require('../db');
+const adminAuth = require('../middleware/adminAuth');
+const { generateTokenForSession } = require('../cron/tokenRotator');
+
+// All admin routes require adminAuth
+router.use(adminAuth);
+
+// 1. Dashboard Overview Stats
+router.get('/stats', (req, res) => {
+  const totalStudents = db.prepare('SELECT COUNT(*) as count FROM students').get().count;
+  const activeSessions = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE is_active = 1').get().count;
+  const totalSessions = db.prepare('SELECT COUNT(*) as count FROM sessions').get().count;
+  const todayAttendance = db.prepare(`
+    SELECT COUNT(*) as count FROM attendance 
+    WHERE date(marked_at) = date('now')
+  `).get().count;
+
+  // Today's sessions with attendance counts
+  const sessions = db.prepare(`
+    SELECT 
+      s.*, 
+      (SELECT COUNT(*) FROM attendance a WHERE a.session_id = s.id) as attendance_count
+    FROM sessions s
+    ORDER BY s.id DESC LIMIT 10
+  `).all();
+
+  return res.json({
+    total_students: totalStudents,
+    active_sessions: activeSessions,
+    total_sessions: totalSessions,
+    today_attendance: todayAttendance,
+    recent_sessions: sessions
+  });
+});
+
+// 2. Start a New Class/Subject Session (1 to 5 hours)
+router.post('/sessions/start', (req, res) => {
+  const { subject_name, subject_code, hour_number, geo_fence_enabled, geo_lat, geo_lng, geo_radius_m } = req.body;
+
+  if (!subject_name) {
+    return res.status(400).json({ error: 'Subject name is required' });
+  }
+
+  const hour = parseInt(hour_number, 10) || 1;
+  const isGeoEnabled = geo_fence_enabled ? 1 : 0;
+  const lat = geo_lat ? parseFloat(geo_lat) : null;
+  const lng = geo_lng ? parseFloat(geo_lng) : null;
+  const radius = geo_radius_m ? parseInt(geo_radius_m, 10) : 100;
+
+  try {
+    const insertStmt = db.prepare(`
+      INSERT INTO sessions (subject_name, subject_code, hour_number, started_by, geo_fence_enabled, geo_lat, geo_lng, geo_radius_m)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = insertStmt.run(
+      subject_name.trim(),
+      (subject_code || '').trim(),
+      hour,
+      req.admin.username,
+      isGeoEnabled,
+      lat,
+      lng,
+      radius
+    );
+
+    const sessionId = result.lastInsertRowid;
+    // Generate initial QR token & PIN immediately
+    generateTokenForSession(sessionId);
+
+    const newSession = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);
+    return res.status(201).json({ success: true, session: newSession });
+  } catch (err) {
+    console.error('[Start Session Error]', err);
+    return res.status(500).json({ error: 'Failed to create session' });
+  }
+});
+
+// 3. Stop an Active Session
+router.post('/sessions/:id/stop', (req, res) => {
+  const sessionId = parseInt(req.params.id, 10);
+  const updateStmt = db.prepare(`
+    UPDATE sessions 
+    SET is_active = 0, ended_at = CURRENT_TIMESTAMP 
+    WHERE id = ?
+  `);
+  const result = updateStmt.run(sessionId);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  return res.json({ success: true, message: `Session ${sessionId} ended` });
+});
+
+// 4. List All Sessions with Attendance Counts
+router.get('/sessions', (req, res) => {
+  const sessions = db.prepare(`
+    SELECT 
+      s.*, 
+      (SELECT COUNT(*) FROM attendance a WHERE a.session_id = s.id) as attendance_count
+    FROM sessions s
+    ORDER BY s.id DESC
+  `).all();
+
+  return res.json({ sessions });
+});
+
+// 5. Active Sessions List (public/display friendly)
+router.get('/sessions/active', (req, res) => {
+  const sessions = db.prepare(`
+    SELECT 
+      s.*, 
+      (SELECT COUNT(*) FROM attendance a WHERE a.session_id = s.id) as attendance_count
+    FROM sessions s 
+    WHERE s.is_active = 1
+    ORDER BY s.id DESC
+  `).all();
+
+  return res.json({ sessions });
+});
+
+// 6. Update Geo-fence for a Session (Toggle on/off, change coords/radius)
+router.patch('/sessions/:id/geofence', (req, res) => {
+  const sessionId = parseInt(req.params.id, 10);
+  const { enabled, lat, lng, radius } = req.body;
+
+  const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  const updateStmt = db.prepare(`
+    UPDATE sessions 
+    SET geo_fence_enabled = ?, geo_lat = ?, geo_lng = ?, geo_radius_m = ?
+    WHERE id = ?
+  `);
+
+  updateStmt.run(
+    enabled ? 1 : 0,
+    lat !== undefined ? parseFloat(lat) : null,
+    lng !== undefined ? parseFloat(lng) : null,
+    radius !== undefined ? parseInt(radius, 10) : 100,
+    sessionId
+  );
+
+  const updated = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);
+  return res.json({ success: true, session: updated });
+});
+
+// 7. Manual Attendance Override / Error Correction
+// Add attendance manually for a student who had a device/scan issue
+router.post('/attendance/manual-mark', (req, res) => {
+  const { session_id, student_id } = req.body;
+
+  if (!session_id || !student_id) {
+    return res.status(400).json({ error: 'Session ID and Student ID are required' });
+  }
+
+  const cleanStudentId = student_id.trim().toUpperCase();
+  const student = db.prepare('SELECT * FROM students WHERE student_id = ?').get(cleanStudentId);
+  if (!student) {
+    return res.status(404).json({ error: 'Student ID not found in roster' });
+  }
+
+  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(session_id);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  try {
+    const insertStmt = db.prepare(`
+      INSERT INTO attendance (session_id, student_id, geo_verified, token_used)
+      VALUES (?, ?, 1, 'MANUAL_ADMIN_OVERRIDE')
+    `);
+    insertStmt.run(session_id, cleanStudentId);
+
+    return res.json({
+      success: true,
+      message: `Manually marked attendance for ${student.name} (${student.student_id})`
+    });
+  } catch (err) {
+    if (err.message && err.message.includes('UNIQUE constraint failed')) {
+      return res.status(409).json({ error: 'Attendance already marked for this student in this session' });
+    }
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Delete an attendance entry if recorded in error
+router.delete('/attendance/:attendanceId', (req, res) => {
+  const id = parseInt(req.params.attendanceId, 10);
+  const delStmt = db.prepare('DELETE FROM attendance WHERE id = ?');
+  const result = delStmt.run(id);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Attendance record not found' });
+  }
+
+  return res.json({ success: true, message: 'Attendance record removed' });
+});
+
+// 8. Student Roster Management (Search, Filter, List)
+router.get('/students', (req, res) => {
+  const { search, year, department } = req.query;
+
+  let query = 'SELECT * FROM students WHERE 1=1';
+  const params = [];
+
+  if (search) {
+    query += ' AND (name LIKE ? OR usn LIKE ? OR student_id LIKE ? OR mobile LIKE ?)';
+    const term = `%${search}%`;
+    params.push(term, term, term, term);
+  }
+
+  if (year) {
+    query += ' AND year = ?';
+    params.push(parseInt(year, 10));
+  }
+
+  if (department) {
+    query += ' AND department = ?';
+    params.push(department);
+  }
+
+  query += ' ORDER BY id DESC';
+
+  const students = db.prepare(query).all(...params);
+  return res.json({ total: students.length, students });
+});
+
+// Delete a student from roster
+router.delete('/students/:studentId', (req, res) => {
+  const { studentId } = req.params;
+  const result = db.prepare('DELETE FROM students WHERE student_id = ?').run(studentId.toUpperCase());
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Student not found' });
+  }
+
+  return res.json({ success: true, message: `Student ${studentId} deleted from roster` });
+});
+
+// 9. Change Admin Password
+router.post('/change-password', (req, res) => {
+  const { current_password, new_password } = req.body;
+
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+
+  const admin = db.prepare('SELECT * FROM admins WHERE id = ?').get(req.admin.id);
+  if (!admin) {
+    return res.status(404).json({ error: 'Admin user not found' });
+  }
+
+  const isMatch = bcrypt.compareSync(current_password, admin.password_hash);
+  if (!isMatch) {
+    return res.status(401).json({ error: 'Current password does not match' });
+  }
+
+  const salt = bcrypt.genSaltSync(10);
+  const hash = bcrypt.hashSync(new_password, salt);
+  db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, admin.id);
+
+  return res.json({ success: true, message: 'Password changed successfully' });
+});
+
+module.exports = router;

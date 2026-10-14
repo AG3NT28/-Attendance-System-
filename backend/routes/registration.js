@@ -1,0 +1,164 @@
+const express = require('express');
+const router = express.Router();
+const QRCode = require('qrcode');
+const db = require('../db');
+const adminAuth = require('../middleware/adminAuth');
+require('dotenv').config();
+
+const REGISTRATION_KEY = process.env.REGISTRATION_KEY || 'STATIC_REG_QR_KEY_SECRET_7890';
+
+// Helper to compute Student ID: first 4 letters of name in uppercase + last 4 digits of mobile
+function computeStudentID(name, mobile) {
+  // Strip non-alpha characters from name
+  const cleanName = (name || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
+  const namePart = cleanName.length >= 4 
+    ? cleanName.substring(0, 4) 
+    : cleanName.padEnd(4, 'X');
+
+  // Strip non-digit characters from mobile
+  const cleanMobile = (mobile || '').replace(/\D/g, '');
+  const mobilePart = cleanMobile.length >= 4 
+    ? cleanMobile.slice(-4) 
+    : cleanMobile.padStart(4, '0');
+
+  return `${namePart}${mobilePart}`;
+}
+
+// Verify registration key for frontend guard
+router.get('/registration-key/verify', (req, res) => {
+  const { key } = req.query;
+  if (!key || key !== REGISTRATION_KEY) {
+    return res.status(403).json({ valid: false, error: 'Unauthorized: Invalid registration key' });
+  }
+  return res.json({ valid: true });
+});
+
+// Student Registration Endpoint
+router.post('/register', (req, res) => {
+  const { key, name, usn, department, year, cycle, mobile } = req.body;
+
+  // Enforce access control via secret static QR key
+  if (!key || key !== REGISTRATION_KEY) {
+    return res.status(403).json({ error: 'Access Denied: Registration is only accessible via the official Admin Static QR code.' });
+  }
+
+  // Validate fields
+  if (!name || !usn || !department || !year || !mobile) {
+    return res.status(400).json({ error: 'Name, USN, Department, Year, and Mobile Number are required.' });
+  }
+
+  const numYear = parseInt(year, 10);
+  if (isNaN(numYear) || numYear < 1 || numYear > 4) {
+    return res.status(400).json({ error: 'Year must be between 1 and 4.' });
+  }
+
+  // Cycle check: Only applicable and mandatory for 1st years
+  let studentCycle = null;
+  if (numYear === 1) {
+    if (!cycle || (cycle !== 'Physics' && cycle !== 'Chemistry' && cycle !== 'Physics Cycle' && cycle !== 'Chemistry Cycle')) {
+      return res.status(400).json({ error: 'First year students must specify Cycle (Physics or Chemistry).' });
+    }
+    studentCycle = cycle.includes('Physics') ? 'Physics' : 'Chemistry';
+  }
+
+  // Mobile validation
+  const cleanMobile = mobile.replace(/\D/g, '');
+  if (cleanMobile.length < 10) {
+    return res.status(400).json({ error: 'Please enter a valid 10-digit mobile number.' });
+  }
+
+  // Check if USN is already registered
+  const existingUSN = db.prepare('SELECT student_id, name FROM students WHERE usn = ?').get(usn.trim().toUpperCase());
+  if (existingUSN) {
+    return res.status(409).json({
+      error: `USN/Admission No. is already registered with Student ID: ${existingUSN.student_id}`,
+      student_id: existingUSN.student_id
+    });
+  }
+
+  // Generate base Student ID
+  let studentId = computeStudentID(name, cleanMobile);
+
+  // If collision with another student's ID, add a numeric suffix
+  let candidateId = studentId;
+  let counter = 1;
+  while (true) {
+    const existingID = db.prepare('SELECT id FROM students WHERE student_id = ?').get(candidateId);
+    if (!existingID) {
+      studentId = candidateId;
+      break;
+    }
+    candidateId = `${studentId}${counter++}`;
+  }
+
+  try {
+    const insertStmt = db.prepare(`
+      INSERT INTO students (name, usn, department, year, cycle, mobile, student_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertStmt.run(
+      name.trim(),
+      usn.trim().toUpperCase(),
+      department.trim(),
+      numYear,
+      studentCycle,
+      cleanMobile,
+      studentId
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Student registered successfully',
+      student: {
+        student_id: studentId,
+        name: name.trim(),
+        usn: usn.trim().toUpperCase(),
+        department: department.trim(),
+        year: numYear,
+        cycle: studentCycle,
+        mobile: cleanMobile
+      }
+    });
+  } catch (err) {
+    console.error('[Registration Error]', err);
+    return res.status(500).json({ error: 'Database error during student registration.' });
+  }
+});
+
+// Admin Route to generate the static QR code for student registration
+router.get('/admin/registration-qr', adminAuth, async (req, res) => {
+  try {
+    const host = req.headers.host || `localhost:${process.env.PORT || 3001}`;
+    const protocol = req.protocol || 'http';
+    
+    // In dev, frontend is typically on port 5173 or same origin
+    const clientOrigin = req.headers.referer 
+      ? new URL(req.headers.referer).origin 
+      : `${protocol}://${host}`;
+
+    const registrationUrl = `${clientOrigin}/register?key=${encodeURIComponent(REGISTRATION_KEY)}`;
+    
+    const qrDataUrl = await QRCode.toDataURL(registrationUrl, {
+      errorCorrectionLevel: 'H',
+      margin: 2,
+      width: 400,
+      color: {
+        dark: '#1e1b4b', // Indigo-950
+        light: '#ffffff'
+      }
+    });
+
+    return res.json({
+      success: true,
+      url: registrationUrl,
+      key: REGISTRATION_KEY,
+      qr_code: qrDataUrl
+    });
+  } catch (err) {
+    console.error('[QR Generation Error]', err);
+    return res.status(500).json({ error: 'Failed to generate registration QR code.' });
+  }
+});
+
+module.exports = router;
