@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { X, Camera, AlertCircle } from 'lucide-react';
+import { X, Camera, AlertCircle, Crosshair } from 'lucide-react';
 
 export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
   const [errorMsg, setErrorMsg] = useState('');
@@ -15,16 +15,14 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
     const html5QrCode = new Html5Qrcode('qr-reader-container');
     scannerRef.current = html5QrCode;
 
-    const qrConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const qrConfig = { fps: 12, qrbox: { width: 240, height: 240 } };
 
     html5QrCode
       .start(
         { facingMode: 'environment' },
         qrConfig,
         (decodedText) => {
-          // Success callback
           try {
-            // Extract token from URL or text
             let token = decodedText;
             if (decodedText.includes('token=')) {
               const url = new URL(decodedText);
@@ -47,9 +45,7 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
             onClose();
           }
         },
-        () => {
-          // Frame error (ignore scanning frames)
-        }
+        () => {}
       )
       .then(() => {
         setIsStarting(false);
@@ -74,54 +70,55 @@ export default function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+      <div className="relative w-full max-w-sm border border-zinc-700 bg-[#111114] p-5 shadow-2xl bracket-card">
+        {/* Header */}
+        <div className="mb-4 flex items-center justify-between border-b border-zinc-800 pb-3 font-mono">
           <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-brand-50 p-2 text-brand-600">
-              <Camera className="h-5 w-5" />
-            </div>
-            <h3 className="font-bold text-slate-800">Scan Classroom QR</h3>
+            <Crosshair className="h-4 w-4 text-amber-400" />
+            <span className="text-xs font-bold tracking-wider text-zinc-100 uppercase">
+              OPTICAL_RETICLE
+            </span>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="border border-zinc-700 bg-zinc-800 p-1 text-zinc-400 hover:border-zinc-500 hover:text-white transition"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {errorMsg ? (
-          <div className="my-4 rounded-xl border border-red-200 bg-red-50 p-4 text-center">
-            <AlertCircle className="mx-auto mb-2 h-8 w-8 text-red-500" />
-            <p className="text-sm font-medium text-red-700">{errorMsg}</p>
-            <p className="mt-2 text-xs text-red-600">
-              You can also use your phone's default camera app to scan the QR code.
+          <div className="my-4 border border-signal-crimson/30 bg-signal-crimson/10 p-4 text-center font-mono text-xs">
+            <AlertCircle className="mx-auto mb-2 h-6 w-6 text-signal-crimson" />
+            <p className="font-semibold text-red-300">{errorMsg}</p>
+            <p className="mt-2 text-[11px] text-zinc-400">
+              You can also use your device native camera scanner.
             </p>
           </div>
         ) : (
           <div>
             <div
               id="qr-reader-container"
-              className="overflow-hidden rounded-xl border-2 border-dashed border-brand-200 bg-slate-900"
-              style={{ minHeight: '300px' }}
+              className="overflow-hidden border border-zinc-700 bg-black relative"
+              style={{ minHeight: '260px' }}
             ></div>
             {isStarting && (
-              <p className="mt-3 text-center text-xs text-slate-500 animate-pulse">
-                Initializing camera feed...
+              <p className="mt-3 text-center text-xs font-mono text-amber-400 animate-pulse">
+                INITIALIZING WEBRTC SENSOR...
               </p>
             )}
-            <p className="mt-3 text-center text-xs text-slate-500">
-              Point your camera at the dynamic QR code displayed on the classroom screen.
+            <p className="mt-3 text-center text-[11px] font-mono text-zinc-400">
+              Align camera reticle with classroom dynamic QR.
             </p>
           </div>
         )}
 
         <button
           onClick={onClose}
-          className="mt-4 w-full rounded-xl bg-slate-100 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+          className="mt-4 w-full border border-zinc-700 bg-zinc-900 py-2.5 text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 hover:bg-zinc-800 hover:border-zinc-500 transition"
         >
-          Close
+          DISMISS VIEWFINDER
         </button>
       </div>
     </div>

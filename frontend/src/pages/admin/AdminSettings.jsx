@@ -5,12 +5,13 @@ import {
   QrCode, 
   ShieldCheck, 
   KeyRound, 
-  MapPin, 
   Download, 
   Eye, 
   EyeOff, 
   Copy, 
-  Check 
+  Check,
+  Terminal,
+  Lock
 } from 'lucide-react';
 
 export default function AdminSettings() {
@@ -32,7 +33,6 @@ export default function AdminSettings() {
   };
 
   useEffect(() => {
-    // Fetch Admin Static Registration QR
     const fetchRegQR = async () => {
       try {
         const res = await axios.get('/api/admin/registration-qr', axiosConfig);
@@ -78,7 +78,7 @@ export default function AdminSettings() {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setPasswordError(err.response?.data?.error || 'Failed to change password');
+      setPasswordError(err.response?.data?.error || 'Failed to update credentials');
     } finally {
       setLoadingPass(false);
     }
@@ -86,42 +86,46 @@ export default function AdminSettings() {
 
   return (
     <AdminLayout>
-      <div className="space-y-8 max-w-4xl">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-            System & Security Settings
+      <div className="space-y-6 max-w-4xl font-mono text-zinc-100">
+        
+        {/* Header Bar */}
+        <div className="border-b border-zinc-800 pb-5">
+          <div className="flex items-center gap-2 text-xs text-amber-400 font-bold mb-1">
+            <Terminal className="h-4 w-4" />
+            SECURITY ARCHITECTURE // CONFIGURATION
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white uppercase font-sans">
+            System & Security Vault
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Access the confidential registration static QR, configure security passkeys, and manage credentials.
-          </p>
         </div>
 
         {/* Section 1: Confidential Static Registration QR */}
-        <div className="rounded-3xl border border-brand-500/30 bg-slate-900/90 p-6 sm:p-8 shadow-2xl">
-          <div className="flex items-center gap-2 mb-2 text-brand-400">
-            <QrCode className="h-5 w-5" />
-            <h2 className="text-base font-bold text-white uppercase tracking-wider text-xs">
-              Confidential Static Registration QR Code
-            </h2>
+        <div className="border border-zinc-800 bg-[#111114] p-6 sm:p-8 bracket-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-widest">
+              <QrCode className="h-4 w-4" />
+              CONFIDENTIAL REGISTRATION STATIC QR
+            </div>
+            <span className="text-[10px] text-zinc-500 uppercase">ACCESS_KEY: PROTECTED</span>
           </div>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            This QR code contains the secret authorization key needed for student registration. Keep this QR <strong className="text-white">hidden from students</strong> at all times. Print or display it in your faculty room only when enrolling new students.
+
+          <p className="text-xs text-zinc-400 leading-relaxed font-sans">
+            This physical QR contains the cryptographically signed URL secret required to register new student devices. Display or print this strictly within the authorized instructor office.
           </p>
 
           <div className="mt-6 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-            {/* QR Image */}
+            {/* QR Card */}
             <div className="md:col-span-5 flex flex-col items-center">
-              <div className="rounded-2xl border-2 border-brand-500/40 bg-white p-3 shadow-xl">
+              <div className="border border-zinc-700 bg-white p-3 relative shadow-xl">
                 {regData?.qr_code ? (
                   <img
                     src={regData.qr_code}
                     alt="Confidential Static Registration QR"
-                    className="h-52 w-52 rounded-xl object-contain"
+                    className="h-48 w-48 object-contain"
                   />
                 ) : (
-                  <div className="h-52 w-52 flex items-center justify-center text-slate-500 text-xs">
-                    Generating Static QR...
+                  <div className="h-48 w-48 flex items-center justify-center text-zinc-600 text-xs">
+                    GENERATING STATIC QR...
                   </div>
                 )}
               </div>
@@ -129,132 +133,133 @@ export default function AdminSettings() {
                 <a
                   href={regData.qr_code}
                   download="Confidential_Registration_QR.png"
-                  className="mt-3 flex items-center gap-1.5 text-xs font-bold text-brand-400 hover:text-brand-300"
+                  className="mt-3 flex items-center gap-1.5 text-xs font-bold text-amber-400 hover:text-amber-300 uppercase"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  Download High-Res QR (PNG)
+                  DOWNLOAD QR (PNG)
                 </a>
               )}
             </div>
 
-            {/* URL Details */}
-            <div className="md:col-span-7 space-y-4">
+            {/* URL & Key Details */}
+            <div className="md:col-span-7 space-y-4 text-xs">
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Encoded Registration Secret URL
+                <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">
+                  ENCODED REGISTRATION URL
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     readOnly
                     value={regData?.url || ''}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-mono text-slate-300"
+                    className="w-full border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-300 font-mono"
                   />
                   <button
                     onClick={handleCopyLink}
-                    className="shrink-0 rounded-xl bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 transition"
-                    title="Copy Link"
+                    className="shrink-0 border border-zinc-700 bg-zinc-800 p-2 text-zinc-200 hover:border-amber-400 hover:text-amber-400 transition"
+                    title="Copy URL"
                   >
-                    {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                    {copied ? <Check className="h-4 w-4 text-signal-emerald" /> : <Copy className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Static Secret Key
+                <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">
+                  REGISTRATION SECRET KEY
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type={showSecretKey ? 'text' : 'password'}
                     readOnly
                     value={regData?.key || ''}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-mono text-brand-300"
+                    className="w-full border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-amber-400 font-mono"
                   />
                   <button
                     onClick={() => setShowSecretKey(!showSecretKey)}
-                    className="shrink-0 rounded-xl bg-slate-800 p-2 text-slate-300 hover:bg-slate-700"
+                    className="shrink-0 border border-zinc-700 bg-zinc-800 p-2 text-zinc-200 hover:border-zinc-500"
                   >
                     {showSecretKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="rounded-xl bg-slate-800/40 p-3 text-[11px] text-slate-400 border border-slate-700/50">
-                🔒 Security Note: Anyone visiting <code className="text-white">/register</code> without this exact secret key query parameter will be automatically blocked by the server with a 403 Forbidden.
+              <div className="border border-zinc-800 bg-zinc-950/80 p-3 text-[11px] text-zinc-500 leading-relaxed">
+                Direct visits to <span className="text-zinc-300 font-bold">/register</span> without this token return 403 Forbidden to block rogue registrations.
               </div>
             </div>
           </div>
         </div>
 
         {/* Section 2: Change Admin Password */}
-        <div className="rounded-3xl border border-slate-800 bg-slate-900/90 p-6 sm:p-8 shadow-xl">
-          <div className="flex items-center gap-2 mb-4">
-            <KeyRound className="h-5 w-5 text-indigo-400" />
-            <h2 className="text-base font-bold text-white">Change Admin Password</h2>
+        <div className="border border-zinc-800 bg-[#111114] p-6 sm:p-8 bracket-card shadow-xl">
+          <div className="flex items-center gap-2 mb-4 text-xs font-bold text-white uppercase tracking-wider pb-2 border-b border-zinc-800">
+            <Lock className="h-4 w-4 text-amber-400" />
+            <span>UPDATE OPERATOR CREDENTIALS</span>
           </div>
 
           {passwordMsg && (
-            <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-medium text-emerald-300">
+            <div className="mb-4 border border-signal-emerald/40 bg-signal-emerald/10 p-3 text-xs text-signal-emerald">
               {passwordMsg}
             </div>
           )}
 
           {passwordError && (
-            <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs font-medium text-red-300">
+            <div className="mb-4 border border-signal-crimson/40 bg-signal-crimson/10 p-3 text-xs text-red-300">
               {passwordError}
             </div>
           )}
 
-          <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+          <form onSubmit={handleChangePassword} className="space-y-4 max-w-md text-xs">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Current Password
+              <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">
+                CURRENT OPERATOR PASSWORD
               </label>
               <input
                 type="password"
                 required
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-2.5 text-sm text-white focus:border-brand-500 focus:outline-none"
+                className="w-full border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                New Password
+              <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">
+                NEW OPERATOR PASSWORD
               </label>
               <input
                 type="password"
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-2.5 text-sm text-white focus:border-brand-500 focus:outline-none"
+                className="w-full border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Confirm New Password
+              <label className="block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">
+                CONFIRM NEW PASSWORD
               </label>
               <input
                 type="password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-2.5 text-sm text-white focus:border-brand-500 focus:outline-none"
+                className="w-full border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
             </div>
 
             <button
               type="submit"
               disabled={loadingPass}
-              className="rounded-xl bg-brand-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-brand-500 transition disabled:opacity-50"
+              className="border border-amber-400 bg-amber-400 px-5 py-2.5 text-xs font-bold text-black uppercase tracking-wider hover:bg-amber-300 transition active:translate-y-[1px] disabled:opacity-50"
             >
-              {loadingPass ? 'Updating...' : 'Update Password'}
+              {loadingPass ? 'UPDATING...' : 'COMMIT NEW PASSWORD'}
             </button>
           </form>
         </div>
+
       </div>
     </AdminLayout>
   );

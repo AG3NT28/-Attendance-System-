@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, NavLink } from 'react-router-dom';
 import axios from 'axios';
 import { 
   UserCheck, 
   ShieldAlert, 
-  Sparkles, 
-  CheckCircle2, 
-  IdCard, 
+  Check, 
   Phone, 
   Building2, 
   GraduationCap, 
-  Layers 
+  Cpu, 
+  Sparkles, 
+  ArrowRight, 
+  Copy,
+  Zap,
+  Star,
+  Flame
 } from 'lucide-react';
+import RetroHeader from '../components/RetroHeader';
 
 export default function RegisterPage() {
   const [searchParams] = useSearchParams();
@@ -32,6 +37,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [registeredStudent, setRegisteredStudent] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   // Verify registration key on page load
   useEffect(() => {
@@ -56,7 +62,7 @@ export default function RegisterPage() {
       });
   }, [key]);
 
-  // Compute Student ID dynamically
+  // Compute Student ID dynamically: NAME[0:4] + MOBILE[-4:]
   const dynamicStudentID = useMemo(() => {
     const cleanName = (formData.name || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
     const namePart = cleanName.length >= 4 
@@ -95,20 +101,28 @@ export default function RegisterPage() {
       const res = await axios.post('/api/register', payload);
       setRegisteredStudent(res.data.student);
     } catch (err) {
-      const msg = err.response?.data?.error || 'Registration failed. Please check your details.';
+      const msg = err.response?.data?.error || 'Registration failed. Check if USN or Mobile is already registered.';
       setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleCopyId = () => {
+    if (registeredStudent?.student_id) {
+      navigator.clipboard.writeText(registeredStudent.student_id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   // 1. Loading key verification state
   if (isVerifyingKey) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-900 p-4">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-brand-500 border-t-transparent"></div>
-          <p className="mt-4 text-sm font-medium text-slate-300">Verifying secure QR registration token...</p>
+      <div className="flex min-h-screen items-center justify-center bg-transparent text-zinc-300 font-mono">
+        <div className="border-2 border-black bg-[#150d24] p-6 text-center shadow-brutal-amber">
+          <Star className="h-6 w-6 text-retro-yellow mx-auto animate-pulse mb-3 fill-retro-yellow" />
+          <p className="font-righteous text-xs uppercase tracking-wider text-white">VERIFYING REGISTRATION PORTAL...</p>
         </div>
       </div>
     );
@@ -117,291 +131,379 @@ export default function RegisterPage() {
   // 2. Access Denied: not accessed via secret admin QR
   if (!isKeyValid) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
-        <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-slate-900/90 p-8 text-center shadow-2xl backdrop-blur-xl">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 text-red-400">
-            <ShieldAlert className="h-8 w-8" />
+      <div className="min-h-screen bg-transparent p-4 flex flex-col justify-between font-sans">
+        <RetroHeader />
+        <div className="my-auto mx-auto w-full max-w-md border-2 border-black bg-[#150d24] p-8 text-center shadow-brutal-amber ring-light">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center border-2 border-black bg-retro-pink text-white shadow-brutal mb-4">
+            <ShieldAlert className="h-7 w-7" />
           </div>
-          <h2 className="mt-5 text-xl font-bold text-white">Access Restricted</h2>
-          <p className="mt-3 text-sm text-slate-400 leading-relaxed">
-            This student registration portal is strictly protected and can only be accessed by scanning the official <span className="font-semibold text-slate-200">Admin Static QR Code</span>.
+          <h2 className="text-3xl font-righteous text-white uppercase tracking-wide">
+            Access Restricted!
+          </h2>
+          <p className="mt-2 text-xs text-purple-200 font-mono leading-relaxed">
+            You must scan the authorized registration QR code at the MVJCE Talent's Day auditorium entrance.
           </p>
-          <div className="mt-6 rounded-2xl bg-slate-800/60 p-4 text-xs text-slate-400 border border-slate-700/50">
-            Please contact your department faculty or administrator to scan the authorized physical registration QR code.
+          <div className="mt-5 border-2 border-black bg-black p-3 text-[11px] font-mono text-purple-300 text-left">
+            URL REQUIREMENT: <span className="text-retro-yellow font-bold">?key=STATIC_REG_QR_KEY</span>
           </div>
         </div>
+        <footer className="text-center text-[10px] font-mono text-zinc-600 pb-4">
+          MVJCE TALENT'S DAY 2026 // ATTENDANCE PROTOCOL
+        </footer>
       </div>
     );
   }
 
-  // 3. Success Screen
+  // 3. Success Screen: Student Identity Card Display
   if (registeredStudent) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
-        <div className="w-full max-w-lg rounded-3xl border border-brand-500/30 bg-slate-900/95 p-8 shadow-2xl backdrop-blur-xl">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
-            <CheckCircle2 className="h-9 w-9" />
-          </div>
-          <h2 className="mt-4 text-center text-2xl font-black tracking-tight text-white">
-            Registration Successful!
-          </h2>
-          <p className="mt-1 text-center text-sm text-slate-400">
-            Your profile has been registered in the attendance database.
-          </p>
+      <div className="min-h-screen bg-transparent text-zinc-100 p-4 sm:p-6 flex flex-col justify-between font-sans">
+        <RetroHeader />
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-brand-500/40 bg-gradient-to-br from-brand-950/80 to-slate-900 p-6 shadow-inner text-center">
-            <span className="text-xs font-semibold tracking-wider text-brand-300 uppercase">
-              Your Official Student ID
+        <div className="my-auto mx-auto w-full max-w-md rounded-2xl border-2 border-black bg-[#150d24] p-6 sm:p-8 shadow-brutal-amber beam-ring ring-light">
+          <div className="flex items-center justify-between pb-3 border-b-2 border-black font-mono text-xs">
+            <span className="font-righteous text-retro-yellow flex items-center gap-1.5 font-bold">
+              <Star className="h-4 w-4 fill-retro-yellow stroke-black" />
+              MVJCE TALENT PASS ISSUED
             </span>
-            <div className="mt-2 text-4xl font-black tracking-widest text-white font-mono selection:bg-brand-500">
-              {registeredStudent.student_id}
+            <span className="border border-black bg-retro-purple text-white px-2 py-0.5 text-[10px] font-righteous">
+              VERIFIED 2026
+            </span>
+          </div>
+
+          <div className="py-6 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center border-2 border-black bg-retro-yellow text-black shadow-brutal mb-3 stand-glow">
+              <Check className="h-8 w-8 stroke-[3]" />
             </div>
-            <p className="mt-3 text-xs text-slate-300">
-              Derived from first 4 letters of your name (full caps) + last 4 digits of your mobile.
+            <h2 className="text-3xl font-righteous uppercase text-white tracking-wide text-jojo-gold">
+              Pass Confirmed!
+            </h2>
+            <p className="text-xs text-purple-300 mt-1 font-mono">
+              Your official MVJCE Talent's Day identifier has been synthesized.
             </p>
           </div>
 
-          <div className="mt-6 space-y-2 rounded-2xl bg-slate-800/40 p-4 text-xs text-slate-300 border border-slate-700/40">
-            <div className="flex justify-between py-1 border-b border-slate-700/30">
-              <span className="text-slate-400">Student Name:</span>
-              <span className="font-semibold text-white">{registeredStudent.name}</span>
+          {/* Physical Badge Render */}
+          <div className="border-2 border-black bg-black p-5 relative shadow-brutal-amber mb-6 font-mono">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <div className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">MVJCE STUDENT PASS KEY</div>
+                <div className="text-3xl font-righteous text-retro-yellow tracking-wider mt-1 drop-shadow-[2px_2px_0px_#000]">
+                  {registeredStudent.student_id}
+                </div>
+              </div>
+              <Cpu className="h-7 w-7 text-retro-pink stroke-[1.5]" />
             </div>
-            <div className="flex justify-between py-1 border-b border-slate-700/30">
-              <span className="text-slate-400">USN / Admission No:</span>
-              <span className="font-semibold text-white">{registeredStudent.usn}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-slate-700/30">
-              <span className="text-slate-400">Department:</span>
-              <span className="font-semibold text-white">{registeredStudent.department}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-slate-700/30">
-              <span className="text-slate-400">Year / Cycle:</span>
-              <span className="font-semibold text-white">
-                Year {registeredStudent.year} {registeredStudent.cycle ? `(${registeredStudent.cycle} Cycle)` : ''}
-              </span>
-            </div>
-            <div className="flex justify-between py-1">
-              <span className="text-slate-400">Registered Mobile:</span>
-              <span className="font-semibold text-white">{registeredStudent.mobile}</span>
+
+            <div className="space-y-1.5 text-xs text-zinc-300 border-t-2 border-zinc-900 pt-3">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">NAME:</span>
+                <span className="font-bold text-white">{registeredStudent.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">USN:</span>
+                <span className="font-mono text-zinc-300">{registeredStudent.usn}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">DEPT:</span>
+                <span className="text-zinc-300 truncate max-w-[180px]">{registeredStudent.department}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">YEAR:</span>
+                <span className="text-zinc-300">YEAR {registeredStudent.year}</span>
+              </div>
             </div>
           </div>
 
-          <div className="mt-6 rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 text-center">
-            <p className="text-xs font-medium text-amber-300">
-              ⚠️ Important: Please screenshot or write down your <span className="font-bold underline">{registeredStudent.student_id}</span>. You will enter this Student ID and the classroom screen's PIN to mark your attendance!
-            </p>
-          </div>
+          <div className="space-y-3 font-mono">
+            <button
+              onClick={handleCopyId}
+              className="w-full btn-funky bg-retro-yellow text-black py-3 text-xs font-righteous uppercase tracking-wider flex items-center justify-center gap-2"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {copied ? 'COPIED TO CLIPBOARD!' : 'COPY MY STUDENT ID'}
+            </button>
 
-          <button
-            onClick={() => {
-              setRegisteredStudent(null);
-              setFormData({
-                name: '',
-                usn: '',
-                department: 'Computer Science and Engineering',
-                year: '1',
-                cycle: 'Physics',
-                mobile: ''
-              });
-            }}
-            className="mt-6 w-full rounded-2xl bg-brand-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:bg-brand-500 active:scale-[0.99]"
-          >
-            Register Another Student
-          </button>
+            <a
+              href="/scan"
+              className="w-full btn-funky bg-retro-pink text-white py-3 text-xs font-righteous uppercase tracking-wider flex items-center justify-center gap-2"
+            >
+              <span>PROCEED TO ATTENDANCE SCAN</span>
+              <ArrowRight className="h-4 w-4 stroke-[3]" />
+            </a>
+          </div>
         </div>
+
+        <footer className="text-center text-[10px] font-mono text-purple-400 pb-2">
+          KEEP YOUR STUDENT ID HANDY FOR EVERY SCAN
+        </footer>
       </div>
     );
   }
 
-  // 4. Main Registration Form
+  // 4. Registration Form with Live Holographic Student ID Preview
   return (
-    <div className="min-h-screen bg-slate-950 py-10 px-4 sm:px-6">
-      <div className="mx-auto max-w-xl">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600/20 text-brand-400 ring-1 ring-brand-500/40">
-            <UserCheck className="h-7 w-7" />
-          </div>
-          <h1 className="mt-4 text-2xl sm:text-3xl font-black tracking-tight text-white">
-            Student Roster Registration
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">
-            One-time registration for automated dynamic QR classroom attendance.
-          </p>
-        </div>
+    <div className="min-h-screen bg-transparent text-zinc-100 px-3.5 sm:px-6 py-5 sm:py-10 flex flex-col items-center justify-center font-sans">
+      
+      {/* Outer Retro Framed Window */}
+      <div className="max-w-[460px] lg:max-w-5xl mx-auto w-full rounded-2xl border-2 border-black bg-[#120c1f]/95 backdrop-blur-md shadow-brutal-amber beam-ring ring-light overflow-hidden flex flex-col my-auto relative z-10">
+        
+        {/* Top Tabbed Navigation Bar */}
+        <RetroHeader />
 
-        {/* Dynamic ID Calculation Banner */}
-        <div className="mb-6 overflow-hidden rounded-2xl border border-brand-500/30 bg-gradient-to-r from-brand-950 via-slate-900 to-indigo-950 p-5 shadow-xl">
-          <div className="flex items-center gap-2 text-brand-400">
-            <Sparkles className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-wider">Live Student ID Preview</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <div>
-              <div className="text-3xl font-black tracking-widest text-white font-mono">
-                {dynamicStudentID}
+        {/* Inner Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 border-t-2 border-black">
+          
+          {/* Left Form: 7 cols */}
+          <div className="lg:col-span-7 p-4 sm:p-8 lg:p-10 border-b-2 lg:border-b-0 lg:border-r-2 border-black bg-[#160e29]">
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 border border-black bg-retro-yellow text-black text-[10px] font-righteous uppercase shadow-[2px_2px_0px_#000]">
+                  <Star className="h-3 w-3 fill-black" />
+                  MVJCE • TALENT'S DAY
+                </div>
+                <span className="font-righteous text-xs text-retro-pink">
+                  ★ 2026 ★
+                </span>
               </div>
-              <p className="mt-1 text-xs text-slate-400">
-                Formula: First 4 letters of your Name (CAPS) + Last 4 digits of Mobile
+
+              <h1 className="font-righteous text-3xl sm:text-4xl tracking-wide text-white drop-shadow-[2px_2px_0px_#000] uppercase text-jojo-gold">
+                Talent Pass Registration
+              </h1>
+              <p className="mt-1 text-xs text-purple-200 font-mono">
+                Fill details once to synthesize your permanent MVJCE festival attendance identifier.
               </p>
             </div>
-            <div className="hidden sm:block rounded-xl bg-brand-500/10 px-3 py-1.5 text-xs font-medium text-brand-300 border border-brand-500/20">
-              Auto-Generated
+
+            {/* Attendance Scan Helper Banner */}
+            <div className="mb-4 flex items-center justify-between border-2 border-black bg-[#1f1438] px-3 py-2 text-xs font-mono shadow-[2px_2px_0px_#000]">
+              <div className="flex items-center gap-1.5 text-[11px] text-purple-200">
+                <Zap className="h-3.5 w-3.5 fill-retro-yellow text-black shrink-0" />
+                <span>Already registered your ID?</span>
+              </div>
+              <NavLink
+                to="/scan"
+                className="font-righteous text-[11px] text-retro-yellow hover:text-white underline underline-offset-2 flex items-center gap-1 shrink-0 uppercase tracking-wider"
+              >
+                <span>MARK ATTENDANCE</span>
+                <ArrowRight className="h-3 w-3 stroke-[2.5]" />
+              </NavLink>
             </div>
-          </div>
-        </div>
 
-        {/* Error Alert */}
-        {errorMsg && (
-          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-medium text-red-300">
-            {errorMsg}
-          </div>
-        )}
+            {errorMsg && (
+              <div className="mb-5 border-2 border-black bg-retro-pink/20 text-red-200 p-3 text-xs font-mono shadow-[2px_2px_0px_#000]">
+                {errorMsg}
+              </div>
+            )}
 
-        {/* Form Card */}
-        <div className="rounded-3xl border border-slate-800 bg-slate-900/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Full Name */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Full Name <span className="text-brand-400">*</span>
-              </label>
-              <div className="relative">
+            <form onSubmit={handleSubmit} className="space-y-4 font-mono text-xs">
+              {/* Full Name */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-purple-200 mb-1">
+                  Full Name <span className="text-retro-yellow">*</span>
+                </label>
                 <input
                   type="text"
                   name="name"
                   required
-                  placeholder="e.g. John Doe"
+                  placeholder="e.g. Jotaro Kujo"
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
+                  className="w-full border-2 border-black bg-black px-3.5 py-2.5 text-sm text-white placeholder-zinc-700 shadow-[2px_2px_0px_#000] focus:border-retro-yellow focus:outline-none transition"
                 />
               </div>
-              <span className="mt-1 block text-[11px] text-slate-500">
-                First 4 alphabets will form the prefix of your Student ID.
-              </span>
-            </div>
 
-            {/* USN / Admission Number */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                USN / Admission Number <span className="text-brand-400">*</span>
-              </label>
-              <div className="relative">
+              {/* USN */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-purple-200 mb-1">
+                  USN / Admission ID <span className="text-retro-yellow">*</span>
+                </label>
                 <input
                   type="text"
                   name="usn"
                   required
-                  placeholder="e.g. 1MS21CS045 or ADM-2024-001"
+                  placeholder="e.g. 1MS21CS045"
                   value={formData.usn}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-sm text-white uppercase placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
+                  onChange={(e) => setFormData({ ...formData, usn: e.target.value.toUpperCase() })}
+                  className="w-full border-2 border-black bg-black px-3.5 py-2.5 text-sm uppercase text-white placeholder-zinc-700 shadow-[2px_2px_0px_#000] focus:border-retro-yellow focus:outline-none transition"
                 />
               </div>
-            </div>
 
-            {/* Department */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Department <span className="text-brand-400">*</span>
-              </label>
-              <select
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-sm text-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
-              >
-                <option value="Computer Science and Engineering">Computer Science & Engineering (CSE)</option>
-                <option value="Information Science and Engineering">Information Science & Engineering (ISE)</option>
-                <option value="Artificial Intelligence and Data Science">AI & Data Science (AI/DS)</option>
-                <option value="Electronics and Communication">Electronics & Communication (ECE)</option>
-                <option value="Electrical and Electronics">Electrical & Electronics (EEE)</option>
-                <option value="Mechanical Engineering">Mechanical Engineering (MECH)</option>
-                <option value="Civil Engineering">Civil Engineering (CIVIL)</option>
-                <option value="Biotechnology">Biotechnology</option>
-              </select>
-            </div>
-
-            {/* Year & Cycle (in grid) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Department */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Year of Study <span className="text-brand-400">*</span>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-purple-200 mb-1">
+                  Department <span className="text-retro-yellow">*</span>
                 </label>
                 <select
-                  name="year"
-                  value={formData.year}
+                  name="department"
+                  value={formData.department}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-sm text-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
+                  className="w-full border-2 border-black bg-black px-3.5 py-2.5 text-sm text-white shadow-[2px_2px_0px_#000] focus:border-retro-yellow focus:outline-none transition"
                 >
-                  <option value="1">1st Year</option>
-                  <option value="2">2nd Year</option>
-                  <option value="3">3rd Year</option>
-                  <option value="4">4th Year</option>
+                  <option value="Computer Science and Engineering">Computer Science & Engineering</option>
+                  <option value="Information Science and Engineering">Information Science & Engineering</option>
+                  <option value="Electronics and Communication">Electronics & Communication</option>
+                  <option value="Electrical and Electronics">Electrical & Electronics</option>
+                  <option value="Mechanical Engineering">Mechanical Engineering</option>
+                  <option value="Civil Engineering">Civil Engineering</option>
+                  <option value="Biotechnology">Biotechnology</option>
+                  <option value="Artificial Intelligence and Data Science">AI & Data Science</option>
                 </select>
               </div>
 
-              {/* Cycle: ONLY visible and applicable if 1st Year */}
-              {formData.year === '1' ? (
+              {/* Year & Cycle Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-brand-300 mb-1.5">
-                    Cycle (1st Year Only) <span className="text-brand-400">*</span>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-purple-200 mb-1">
+                    Year of Study <span className="text-retro-yellow">*</span>
                   </label>
                   <select
-                    name="cycle"
-                    value={formData.cycle}
+                    name="year"
+                    value={formData.year}
                     onChange={handleChange}
-                    className="w-full rounded-xl border border-brand-500/50 bg-slate-800/80 px-4 py-3 text-sm text-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
+                    className="w-full border-2 border-black bg-black px-3.5 py-2 text-sm text-white shadow-[2px_2px_0px_#000] focus:border-retro-yellow focus:outline-none transition"
                   >
-                    <option value="Physics">Physics Cycle</option>
-                    <option value="Chemistry">Chemistry Cycle</option>
+                    <option value="1">Year 1 (Freshman)</option>
+                    <option value="2">Year 2 (Sophomore)</option>
+                    <option value="3">Year 3 (Junior)</option>
+                    <option value="4">Year 4 (Senior)</option>
                   </select>
                 </div>
-              ) : (
-                <div className="flex items-center text-xs text-slate-500 pt-7">
-                  <span>Cycle is only applicable to 1st year students.</span>
-                </div>
-              )}
-            </div>
 
-            {/* Mobile Number */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Mobile Number <span className="text-brand-400">*</span>
-              </label>
-              <div className="relative">
+                {formData.year === '1' && (
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-purple-200 mb-1">
+                      Cycle <span className="text-retro-yellow">*</span>
+                    </label>
+                    <select
+                      name="cycle"
+                      value={formData.cycle}
+                      onChange={handleChange}
+                      className="w-full border-2 border-black bg-black px-3.5 py-2 text-sm text-white shadow-[2px_2px_0px_#000] focus:border-retro-yellow focus:outline-none transition"
+                    >
+                      <option value="Physics">Physics Cycle</option>
+                      <option value="Chemistry">Chemistry Cycle</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile Number */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-purple-200 mb-1">
+                  Mobile Number (10 Digits) <span className="text-retro-yellow">*</span>
+                </label>
                 <input
                   type="tel"
                   name="mobile"
                   required
                   maxLength={10}
-                  placeholder="10-digit mobile number"
+                  placeholder="e.g. 9876543210"
                   value={formData.mobile}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
+                  className="w-full border-2 border-black bg-black px-3.5 py-2.5 text-sm text-white placeholder-zinc-700 shadow-[2px_2px_0px_#000] focus:border-retro-yellow focus:outline-none transition font-mono"
                 />
               </div>
-              <span className="mt-1 block text-[11px] text-slate-500">
-                Last 4 digits will form the suffix of your Student ID.
-              </span>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full btn-funky bg-retro-yellow text-black py-3.5 text-xs font-righteous uppercase tracking-wider hover:bg-yellow-300 transition flex items-center justify-center gap-2 mt-2 stand-glow"
+              >
+                {loading ? 'SYNTHESIZING PASS...' : 'GENERATE MVJCE TALENT PASS'}
+              </button>
+            </form>
+          </div>
+
+          {/* Right Column: Live MVJCE Talent Pass Preview (5 cols) */}
+          <div className="lg:col-span-5 bg-checker-dark bg-checker-sm p-6 sm:p-8 flex flex-col justify-between font-mono bg-[#1c1236]">
+            <div>
+              <div className="flex items-center justify-between text-xs pb-3 border-b-2 border-black">
+                <span className="font-righteous text-retro-yellow uppercase">MVJCE TALENT PASS PREVIEW</span>
+                <span className="border border-black bg-retro-pink text-white px-2 py-0.5 text-[10px] font-bold shadow-[1px_1px_0px_#000]">
+                  LIVE_CARD
+                </span>
+              </div>
+
+              {/* Digital Pass Card with Golden Beam Ring */}
+              <div className="mt-6 border-2 border-black bg-black p-5 relative shadow-brutal-pink beam-ring ring-light">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="text-[10px] text-purple-400 uppercase font-bold">SYNTHESIZED IDENTIFIER</div>
+                    <div className="text-3xl font-righteous text-retro-yellow tracking-wider mt-1 drop-shadow-[2px_2px_0px_#000]">
+                      {dynamicStudentID}
+                    </div>
+                  </div>
+                  <Cpu className="h-7 w-7 text-retro-pink stroke-[1.5]" />
+                </div>
+
+                <div className="mt-5 border-t-2 border-zinc-900 pt-3 space-y-2 text-xs">
+                  <div>
+                    <span className="text-zinc-500 text-[10px] block">NAME</span>
+                    <span className="font-bold text-white truncate block">
+                      {formData.name || 'MVJCE STUDENT'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-zinc-500 text-[10px] block">USN</span>
+                    <span className="text-zinc-300 font-mono block">
+                      {formData.usn || '••••••••••'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-zinc-500 text-[10px] block">DEPARTMENT</span>
+                    <span className="text-zinc-400 text-[11px] truncate block">
+                      {formData.department}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Magnetic bar with star watermark */}
+                <div className="mt-5 pt-3 border-t-2 border-dashed border-zinc-800 flex items-center justify-between text-[9px] text-zinc-500">
+                  <span className="flex items-center gap-1 font-bold text-retro-yellow">
+                    <Star className="h-3 w-3 fill-retro-yellow stroke-black inline" />
+                    MVJCE TALENT'S DAY 2026
+                  </span>
+                  <span>FESTIVAL_PASS</span>
+                </div>
+              </div>
             </div>
 
-            {/* Information Notice */}
-            <div className="rounded-xl bg-slate-800/50 border border-slate-700/60 p-4 text-xs text-slate-400 leading-relaxed">
-              <span className="font-semibold text-slate-200">Notice:</span> By clicking Register, your unique Student ID will be enrolled. You do not need any password or login — you will mark attendance directly by scanning the dynamic classroom QR code and typing your Student ID and Unique PIN.
+            <div className="mt-6 border-2 border-black bg-[#150d24] p-3.5 shadow-[2px_2px_0px_#000] text-[11px] text-purple-200 leading-relaxed">
+              💡 <strong className="text-retro-yellow">ID Formula</strong>: First 4 characters of your name + last 4 digits of your phone number.
             </div>
+          </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-2xl bg-brand-600 py-3.5 text-sm font-bold text-white shadow-xl shadow-brand-500/20 transition hover:bg-brand-500 active:scale-[0.99] disabled:opacity-50"
-            >
-              {loading ? 'Registering Student...' : 'Complete Registration'}
-            </button>
-          </form>
         </div>
+
+        {/* Bottom Decorative Trim Ribbon */}
+        <div className="border-t-2 border-black bg-[#150d24] py-2 px-4 flex items-center justify-between text-xs font-mono overflow-hidden select-none">
+          <div className="flex items-center gap-3 text-retro-yellow">
+            {[...Array(6)].map((_, idx) => (
+              <span key={idx} className="font-righteous text-sm leading-none text-retro-yellow">
+                ✦ ★ ✧
+              </span>
+            ))}
+          </div>
+
+          <div className="text-[10px] font-mono text-purple-300 uppercase tracking-widest hidden sm:block font-bold">
+            MVJ COLLEGE OF ENGINEERING // TALENT'S DAY ATTENDANCE
+          </div>
+
+          <div className="flex items-center gap-3 text-retro-pink">
+            {[...Array(6)].map((_, idx) => (
+              <span key={idx} className="font-righteous text-sm leading-none text-retro-pink">
+                ✧ ★ ✦
+              </span>
+            ))}
+          </div>
+        </div>
+
       </div>
+
     </div>
   );
 }

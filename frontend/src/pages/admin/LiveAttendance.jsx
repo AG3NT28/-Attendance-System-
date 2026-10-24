@@ -8,11 +8,12 @@ import {
   Trash2, 
   UserPlus, 
   RefreshCw, 
-  CheckCircle, 
+  Check, 
   AlertCircle, 
-  MapPin, 
-  ShieldCheck, 
-  Radio 
+  Radio, 
+  Terminal,
+  Crosshair,
+  ArrowDownToLine
 } from 'lucide-react';
 
 export default function LiveAttendance() {
@@ -46,7 +47,6 @@ export default function LiveAttendance() {
         setSessions(list);
 
         if (!selectedSessionId && list.length > 0) {
-          // Default to first active session, or first session
           const active = list.find((s) => s.is_active === 1) || list[0];
           setSelectedSessionId(String(active.id));
         }
@@ -83,17 +83,17 @@ export default function LiveAttendance() {
 
   // Handle Delete Attendance Record
   const handleDeleteRecord = async (attendanceId, studentName) => {
-    if (!window.confirm(`Are you sure you want to remove attendance for ${studentName}?`)) return;
+    if (!window.confirm(`Revoke verified attendance for "${studentName}"?`)) return;
 
     try {
       await axios.delete(`/api/admin/attendance/${attendanceId}`, axiosConfig);
       setRecords((prev) => prev.filter((r) => r.id !== attendanceId));
     } catch (err) {
-      alert('Failed to delete attendance record: ' + (err.response?.data?.error || err.message));
+      alert('Delete failed: ' + (err.response?.data?.error || err.message));
     }
   };
 
-  // Handle Manual Attendance Mark (for students with phone issues)
+  // Handle Manual Attendance Mark
   const handleManualMark = async (e) => {
     e.preventDefault();
     if (!manualStudentId.trim() || !selectedSessionId) return;
@@ -112,23 +112,20 @@ export default function LiveAttendance() {
       );
       setManualMsg(res.data.message);
       setManualStudentId('');
-      // Refresh
       const liveRes = await axios.get(`/api/attendance/live/${selectedSessionId}`);
       setRecords(liveRes.data.records || []);
     } catch (err) {
-      setManualMsg(err.response?.data?.error || 'Failed to mark attendance manually');
+      setManualMsg(err.response?.data?.error || 'Manual override failed');
     } finally {
       setManualLoading(false);
     }
   };
 
-  // Handle CSV Export (SQLite-driven)
   const handleExportCSV = () => {
     if (!selectedSessionId) return;
     window.open(`/api/attendance/export/${selectedSessionId}`, '_blank');
   };
 
-  // Filtered records by search term
   const filteredRecords = records.filter((r) => {
     const term = searchTerm.toLowerCase();
     return (
@@ -141,191 +138,175 @@ export default function LiveAttendance() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="space-y-6 font-mono text-zinc-100">
+        
+        {/* Header Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800 pb-5">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Live Attendance Table
-              </h1>
-              {sessionData?.is_active === 1 && (
-                <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400 border border-emerald-500/20">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  STREAMING LIVE
-                </span>
-              )}
+            <div className="flex items-center gap-2 text-xs text-amber-400 font-bold mb-1">
+              <Radio className="h-4 w-4 animate-pulse text-signal-emerald" />
+              LIVE TELEMETRY // LEDGER AUDIT
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Real-time synchronization with active QR scans. Detect errors and edit on the fly.
-            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white uppercase font-sans">
+              Attendance Audit Stream
+            </h1>
           </div>
 
-          {/* Action Buttons: Pause Polling, Export CSV */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsLivePolling(!isLivePolling)}
-              className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-semibold border transition ${
+              className={`flex items-center gap-2 border px-3 py-2 text-xs font-bold uppercase tracking-wider transition ${
                 isLivePolling
-                  ? 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-                  : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                  ? 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                  : 'border-amber-500/40 bg-amber-500/10 text-amber-300'
               }`}
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLivePolling ? 'animate-spin' : ''}`} />
-              {isLivePolling ? 'Live Sync Active' : 'Sync Paused'}
+              {isLivePolling ? 'STREAM: LIVE' : 'STREAM: PAUSED'}
             </button>
 
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-brand-500/20 hover:bg-brand-500 transition"
+              className="flex items-center gap-2 border border-amber-400 bg-amber-400 px-3.5 py-2 text-xs font-bold text-black uppercase tracking-wider hover:bg-amber-300 transition"
             >
-              <Download className="h-3.5 w-3.5" />
-              Export CSV (SQLite)
+              <ArrowDownToLine className="h-3.5 w-3.5" />
+              EXPORT CSV
             </button>
           </div>
         </div>
 
-        {/* Controls: Session Dropdown & Search & Manual Entry */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+        {/* Filters & Selector */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 text-xs">
           {/* Session Selector */}
           <div className="md:col-span-5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-              Select Subject Session
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              TARGET PERIOD / SESSION
             </label>
             <select
               value={selectedSessionId}
               onChange={(e) => setSelectedSessionId(e.target.value)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white focus:border-brand-500 focus:outline-none"
+              className="w-full border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-xs text-white focus:border-amber-400 focus:outline-none transition"
             >
               {sessions.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.is_active ? '🟢 [LIVE] ' : '⚪ [CLOSED] '} Hour {s.hour_number}: {s.subject_name} ({new Date(s.started_at).toLocaleDateString()})
+                  {s.is_active ? '● [ACTIVE] ' : '○ [CLOSED] '} Hour {s.hour_number}: {s.subject_name} ({new Date(s.started_at).toLocaleDateString()})
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Table Search */}
+          {/* Search Box */}
           <div className="md:col-span-4">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-              Search Present Students
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              SEARCH LOGGED RECORDS
             </label>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
               <input
                 type="text"
-                placeholder="Search name, USN, or Student ID..."
+                placeholder="Name, USN, or Student ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 pl-10 pr-4 py-2.5 text-sm text-white focus:border-brand-500 focus:outline-none"
+                className="w-full border border-zinc-700 bg-zinc-950 pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-amber-400 focus:outline-none transition"
               />
             </div>
           </div>
 
-          {/* Real-time Status Card */}
+          {/* Sync Stats */}
           <div className="md:col-span-3 flex flex-col justify-end">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-2.5 flex items-center justify-between text-xs text-slate-400">
-              <span>Total Marked: <strong className="text-brand-400 font-mono text-sm">{records.length}</strong></span>
-              <span>Updated: {lastUpdated || '...'}</span>
+            <div className="border border-zinc-800 bg-[#111114] p-2.5 flex items-center justify-between text-xs">
+              <span className="text-zinc-400">TOTAL: <strong className="text-amber-400">{records.length}</strong></span>
+              <span className="text-zinc-500 text-[11px]">TICK: {lastUpdated || '—'}</span>
             </div>
           </div>
         </div>
 
-        {/* Manual Mark Bar (For broken phones / error correction) */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+        {/* Manual Override Bar */}
+        <div className="border border-zinc-800 bg-[#111114] p-3.5 bracket-card text-xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4 text-brand-400" />
-              <span className="text-xs font-bold text-white">Manual Attendance Override</span>
-              <span className="text-[11px] text-slate-400">(In case student device had battery/network error)</span>
+              <UserPlus className="h-4 w-4 text-amber-400" />
+              <span className="font-bold text-white uppercase tracking-wider">MANUAL OVERRIDE:</span>
+              <span className="text-[11px] text-zinc-500 hidden sm:inline">(For hardware/network failures)</span>
             </div>
             <form onSubmit={handleManualMark} className="flex items-center gap-2 w-full sm:w-auto">
               <input
                 type="text"
-                placeholder="Enter Student ID (e.g. ABCD1234)"
+                placeholder="STUDENT ID"
                 value={manualStudentId}
                 onChange={(e) => setManualStudentId(e.target.value.toUpperCase())}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-1.5 text-xs text-white uppercase font-mono focus:border-brand-500 focus:outline-none"
+                className="border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white uppercase focus:border-amber-400 focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={manualLoading}
-                className="rounded-xl bg-brand-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-brand-500 transition disabled:opacity-50"
+                className="border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-bold text-zinc-200 uppercase hover:bg-zinc-700 transition"
               >
-                {manualLoading ? 'Marking...' : 'Mark Present'}
+                {manualLoading ? 'MARKING...' : 'FORCE MARK'}
               </button>
             </form>
           </div>
           {manualMsg && (
-            <p className="mt-2 text-xs font-medium text-brand-300">{manualMsg}</p>
+            <div className="mt-2 text-[11px] text-amber-300">
+              {manualMsg}
+            </div>
           )}
         </div>
 
-        {/* Live Attendance Table */}
-        <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-800 bg-slate-800/60 text-slate-400 uppercase text-[11px] font-bold tracking-wider">
-                <tr>
-                  <th className="p-4">#</th>
-                  <th className="p-4">Student Name</th>
-                  <th className="p-4">Student ID</th>
-                  <th className="p-4">USN / Admission No</th>
-                  <th className="p-4">Department</th>
-                  <th className="p-4">Year / Cycle</th>
-                  <th className="p-4">Time Logged</th>
-                  <th className="p-4">Geofence</th>
-                  <th className="p-4 text-right">Actions</th>
+        {/* Data Ledger Table */}
+        <div className="border border-zinc-800 bg-[#111114] overflow-x-auto bracket-card">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-zinc-800 text-zinc-500 text-[10px] uppercase tracking-wider">
+                <th className="p-3">#</th>
+                <th className="p-3">STUDENT NAME</th>
+                <th className="p-3">STUDENT ID</th>
+                <th className="p-3">USN</th>
+                <th className="p-3">DEPARTMENT</th>
+                <th className="p-3">TIMESTAMP</th>
+                <th className="p-3">VERIFICATION METHOD</th>
+                <th className="p-3 text-right">ACTION</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-900">
+              {filteredRecords.map((r, i) => (
+                <tr key={r.id} className="text-zinc-300 hover:bg-zinc-900/40">
+                  <td className="p-3 text-zinc-600 font-mono text-[11px]">{String(i + 1).padStart(2, '0')}</td>
+                  <td className="p-3 font-semibold text-white">{r.name}</td>
+                  <td className="p-3 font-bold text-amber-400 font-mono">{r.student_id}</td>
+                  <td className="p-3 text-zinc-400 font-mono">{r.usn}</td>
+                  <td className="p-3 text-zinc-400 truncate max-w-[150px]">{r.department}</td>
+                  <td className="p-3 text-zinc-500 font-mono text-[11px]">
+                    {new Date(r.marked_at).toLocaleTimeString()}
+                  </td>
+                  <td className="p-3">
+                    <span className="inline-flex items-center gap-1 border border-signal-emerald/30 bg-signal-emerald/10 px-2 py-0.5 text-[10px] font-bold text-signal-emerald">
+                      <Check className="h-3 w-3 stroke-[3]" />
+                      QR_TOKEN
+                    </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <button
+                      onClick={() => handleDeleteRecord(r.id, r.name)}
+                      className="border border-zinc-800 bg-zinc-900 p-1 text-zinc-500 hover:border-signal-crimson hover:text-signal-crimson transition"
+                      title="Revoke entry"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {filteredRecords.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-8 text-center text-slate-500">
-                      {searchTerm
-                        ? 'No students matching your search criteria.'
-                        : 'No attendance records logged yet for this session.'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredRecords.map((r, index) => (
-                    <tr key={r.id} className="hover:bg-slate-800/40 transition">
-                      <td className="p-4 font-mono text-xs text-slate-500">{index + 1}</td>
-                      <td className="p-4 font-semibold text-white">{r.name}</td>
-                      <td className="p-4 font-mono font-bold text-brand-400">{r.student_id}</td>
-                      <td className="p-4 font-mono text-xs text-slate-300">{r.usn}</td>
-                      <td className="p-4 text-xs text-slate-300">{r.department}</td>
-                      <td className="p-4 text-xs">
-                        Year {r.year} {r.cycle ? `(${r.cycle})` : ''}
-                      </td>
-                      <td className="p-4 text-xs text-slate-400">
-                        {new Date(r.marked_at).toLocaleTimeString()}
-                      </td>
-                      <td className="p-4 text-xs">
-                        {r.geo_verified ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-400">
-                            <ShieldCheck className="h-3.5 w-3.5" /> Verified
-                          </span>
-                        ) : (
-                          <span className="text-slate-500">Standard</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-right">
-                        <button
-                          onClick={() => handleDeleteRecord(r.id, r.name)}
-                          title="Remove error record"
-                          className="rounded-lg p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+              ))}
+              {filteredRecords.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-zinc-600 text-xs">
+                    No verified attendance records found for this period.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+
       </div>
     </AdminLayout>
   );
